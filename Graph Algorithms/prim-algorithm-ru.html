@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Алгоритм Прима — интерактивная визуализация</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --focus: #38bdf8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: linear-gradient(160deg, #020617, var(--bg));
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 2fr 1fr;
+    }
+
+    .panel {
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+    }
+
+    .panel h1,
+    .panel h2 {
+      margin: 0;
+      padding: 14px 16px;
+      border-bottom: 1px solid #334155;
+      font-size: 1.05rem;
+      background: #0b1220;
+    }
+
+    .content {
+      padding: 14px 16px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    label {
+      font-size: 0.88rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    select,
+    input[type="range"],
+    button {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 8px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover { border-color: #94a3b8; }
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 1px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .stat {
+      background: #0b1220;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.92rem;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0b1220;
+    }
+
+    .status.success { border-color: #166534; color: #bbf7d0; }
+    .status.warn { border-color: #92400e; color: #fde68a; }
+
+    #graph {
+      width: 100%;
+      height: min(62vh, 560px);
+      display: block;
+      background: radial-gradient(circle at 20% 20%, #172554, #020617 70%);
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 16px;
+      height: 4px;
+      vertical-align: middle;
+      margin-right: 6px;
+      border-radius: 2px;
+    }
+
+    .log {
+      max-height: 320px;
+      overflow: auto;
+      margin: 0;
+      padding-left: 22px;
+      color: #dbeafe;
+      font-size: 0.92rem;
+    }
+
+    .small { color: var(--muted); font-size: 0.9rem; }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+      #graph { height: min(52vh, 420px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="panel">
+      <h1>Алгоритм Прима: минимальное остовное дерево (MST)</h1>
+      <svg id="graph" role="img" aria-label="Визуализация взвешенного неориентированного графа и шагов алгоритма Прима"></svg>
+      <div class="content">
+        <div class="legend" aria-hidden="true">
+          <div><span class="swatch" style="background:#94a3b8"></span>Обычное ребро</div>
+          <div><span class="swatch" style="background:#f59e0b"></span>Рассматриваемые рёбра</div>
+          <div><span class="swatch" style="background:#ef4444"></span>Выбранное минимальное ребро</div>
+          <div><span class="swatch" style="background:#22c55e"></span>Ребро в MST</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2>Управление и пояснения</h2>
+      <div class="content">
+        <p><strong>MST</strong> — дерево, которое соединяет все вершины связного графа с минимальной суммой весов.</p>
+        <p><strong>Идея Прима:</strong> растим одно дерево, каждый раз добавляя <em>самое лёгкое ребро</em>, которое соединяет текущий остов с новой вершиной.</p>
+        <p class="small">Инвариант: на каждом шаге выбирается минимальное ребро среди рёбер разреза (из посещённых вершин в непосещённые).</p>
+
+        <div class="controls">
+          <div>
+            <label for="preset">Граф</label>
+            <select id="preset" aria-label="Выбор графа" title="Выбор графа">
+              <option value="connected">Связный (MST существует)</option>
+              <option value="disconnected">Несвязный (полный MST невозможен)</option>
+            </select>
+          </div>
+          <div>
+            <label for="startVertex">Стартовая вершина</label>
+            <select id="startVertex" aria-label="Выбор стартовой вершины" title="Выбор стартовой вершины"></select>
+          </div>
+          <div>
+            <label for="speed">Скорость: <span id="speedValue">1.0x</span></label>
+            <input id="speed" type="range" min="1" max="5" step="1" value="3" aria-label="Скорость анимации" title="Скорость анимации" />
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="playPause" aria-label="Запуск или пауза" title="Запуск/Пауза">Запуск</button>
+          <button id="step" aria-label="Следующий шаг" title="Шаг вперёд">Шаг вперёд</button>
+          <button id="reset" aria-label="Сброс алгоритма" title="Сброс">Сброс</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat">Стоимость MST: <strong id="cost">0</strong></div>
+          <div class="stat">Добавлено рёбер: <strong id="edgeCount">0</strong></div>
+        </div>
+
+        <div id="status" class="status" role="status" aria-live="polite">Готово к запуску.</div>
+
+        <h3>Журнал шагов</h3>
+        <ol id="log" class="log" aria-live="polite"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    (() => {
+      const svg = document.getElementById('graph');
+      const presetEl = document.getElementById('preset');
+      const startEl = document.getElementById('startVertex');
+      const speedEl = document.getElementById('speed');
+      const speedValue = document.getElementById('speedValue');
+      const playPauseBtn = document.getElementById('playPause');
+      const stepBtn = document.getElementById('step');
+      const resetBtn = document.getElementById('reset');
+      const costEl = document.getElementById('cost');
+      const edgeCountEl = document.getElementById('edgeCount');
+      const statusEl = document.getElementById('status');
+      const logEl = document.getElementById('log');
+
+      const graphPresets = {
+        connected: {
+          vertices: [
+            { id: 0, x: 110, y: 90 },
+            { id: 1, x: 320, y: 70 },
+            { id: 2, x: 530, y: 110 },
+            { id: 3, x: 160, y: 290 },
+            { id: 4, x: 360, y: 255 },
+            { id: 5, x: 560, y: 300 }
+          ],
+          edges: [
+            { u: 0, v: 1, w: 4 }, { u: 0, v: 3, w: 3 }, { u: 1, v: 2, w: 6 },
+            { u: 1, v: 4, w: 5 }, { u: 2, v: 5, w: 2 }, { u: 3, v: 4, w: 7 },
+            { u: 4, v: 5, w: 1 }, { u: 2, v: 4, w: 8 }, { u: 1, v: 3, w: 9 }
+          ]
+        },
+        disconnected: {
+          vertices: [
+            { id: 0, x: 110, y: 90 },
+            { id: 1, x: 320, y: 70 },
+            { id: 2, x: 530, y: 110 },
+            { id: 3, x: 160, y: 290 },
+            { id: 4, x: 360, y: 255 },
+            { id: 5, x: 560, y: 300 },
+            { id: 6, x: 650, y: 70 }
+          ],
+          edges: [
+            { u: 0, v: 1, w: 4 }, { u: 0, v: 3, w: 3 }, { u: 1, v: 4, w: 5 },
+            { u: 3, v: 4, w: 7 }, { u: 4, v: 5, w: 1 }, { u: 2, v: 5, w: 2 }
+          ]
+        }
+      };
+
+      let graph;
+      let visited;
+      let mstEdges;
+      let consideredEdges;
+      let selectedEdge;
+      let lastAddedVertex;
+      let totalCost;
+      let running = false;
+      let finished = false;
+      let timer = null;
+
+      const edgeKey = (a, b) => `${Math.min(a, b)}-${Math.max(a, b)}`;
+
+      function setStatus(text, type = '') {
+        statusEl.textContent = text;
+        statusEl.className = `status${type ? ` ${type}` : ''}`;
+      }
+
+      function appendLog(message) {
+        const item = document.createElement('li');
+        item.textContent = message;
+        logEl.appendChild(item);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function clearSvg() {
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+      }
+
+      function createSvgEl(name, attrs) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+        for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+        return el;
+      }
+
+      function renderGraph() {
+        clearSvg();
+        svg.setAttribute('viewBox', '0 0 760 380');
+
+        const mstSet = new Set(mstEdges.map((e) => edgeKey(e.u, e.v)));
+        const consideredSet = new Set(consideredEdges.map((e) => edgeKey(e.u, e.v)));
+        const selectedKey = selectedEdge ? edgeKey(selectedEdge.u, selectedEdge.v) : null;
+
+        for (const e of graph.edges) {
+          const from = graph.vertices[e.u];
+          const to = graph.vertices[e.v];
+          const key = edgeKey(e.u, e.v);
+
+          let color = '#94a3b8';
+          let width = 2;
+          let dash = '';
+
+          if (consideredSet.has(key)) {
+            color = '#f59e0b';
+            width = 3;
+            dash = '7 4';
+          }
+          if (mstSet.has(key)) {
+            color = '#22c55e';
+            width = 4;
+            dash = '';
+          }
+          if (selectedKey === key) {
+            color = '#ef4444';
+            width = 5;
+            dash = '';
+          }
+
+          const line = createSvgEl('line', {
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y,
+            stroke: color,
+            'stroke-width': width,
+            'stroke-dasharray': dash,
+            'stroke-linecap': 'round'
+          });
+          svg.appendChild(line);
+
+          const wx = (from.x + to.x) / 2;
+          const wy = (from.y + to.y) / 2;
+          const weightBg = createSvgEl('rect', {
+            x: wx - 12,
+            y: wy - 14,
+            width: 24,
+            height: 18,
+            rx: 4,
+            fill: '#0b1220',
+            stroke: '#334155'
+          });
+          const weightText = createSvgEl('text', {
+            x: wx,
+            y: wy,
+            fill: '#f8fafc',
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+            'font-size': '12',
+            'font-weight': '700'
+          });
+          weightText.textContent = String(e.w);
+          svg.appendChild(weightBg);
+          svg.appendChild(weightText);
+        }
+
+        for (const v of graph.vertices) {
+          const isVisited = visited.has(v.id);
+          const isFresh = lastAddedVertex === v.id;
+
+          const circle = createSvgEl('circle', {
+            cx: v.x,
+            cy: v.y,
+            r: isFresh ? 22 : 19,
+            fill: isVisited ? '#0284c7' : '#1e293b',
+            stroke: isFresh ? '#facc15' : '#e2e8f0',
+            'stroke-width': isFresh ? 4 : 2
+          });
+
+          const text = createSvgEl('text', {
+            x: v.x,
+            y: v.y,
+            fill: '#f8fafc',
+            'text-anchor': 'middle',
+            'dominant-baseline': 'middle',
+            'font-size': '13',
+            'font-weight': '700'
+          });
+          text.textContent = String(v.id);
+
+          svg.appendChild(circle);
+          svg.appendChild(text);
+        }
+      }
+
+      function updateStats() {
+        costEl.textContent = String(totalCost);
+        edgeCountEl.textContent = String(mstEdges.length);
+      }
+
+      function stopAutoRun() {
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+        running = false;
+        playPauseBtn.textContent = 'Запуск';
+      }
+
+      function chooseMinEdge(edges) {
+        return [...edges].sort((a, b) => a.w - b.w || a.u - b.u || a.v - b.v)[0];
+      }
+
+      function stepPrim() {
+        if (finished) return;
+
+        selectedEdge = null;
+        lastAddedVertex = null;
+
+        consideredEdges = graph.edges.filter((e) => visited.has(e.u) !== visited.has(e.v));
+
+        if (consideredEdges.length === 0) {
+          finished = true;
+          stopAutoRun();
+
+          if (visited.size === graph.vertices.length) {
+            setStatus(`Готово: MST построено. Итоговая стоимость = ${totalCost}.`, 'success');
+            appendLog(`Завершение: все вершины покрыты. Стоимость MST = ${totalCost}.`);
+          } else {
+            setStatus('Остановка: граф несвязный, добраться до всех вершин невозможно.', 'warn');
+            appendLog('Остановка: нет подходящих рёбер разреза, граф несвязный.');
+          }
+
+          renderGraph();
+          updateStats();
+          return;
+        }
+
+        selectedEdge = chooseMinEdge(consideredEdges);
+        const newVertex = visited.has(selectedEdge.u) ? selectedEdge.v : selectedEdge.u;
+
+        mstEdges.push(selectedEdge);
+        visited.add(newVertex);
+        lastAddedVertex = newVertex;
+        totalCost += selectedEdge.w;
+
+        appendLog(
+          `Добавляем ребро (${selectedEdge.u}–${selectedEdge.v}, вес ${selectedEdge.w}), новая вершина: ${newVertex}, стоимость: ${totalCost}.`
+        );
+
+        setStatus(
+          `Текущий шаг: выбрано минимальное ребро ${selectedEdge.u}–${selectedEdge.v} (вес ${selectedEdge.w}).`
+        );
+
+        if (visited.size === graph.vertices.length) {
+          finished = true;
+          stopAutoRun();
+          setStatus(`Готово: MST построено. Итоговая стоимость = ${totalCost}.`, 'success');
+          appendLog(`Завершение: все вершины покрыты. Стоимость MST = ${totalCost}.`);
+        }
+
+        renderGraph();
+        updateStats();
+      }
+
+      function resetState() {
+        stopAutoRun();
+        graph = structuredClone(graphPresets[presetEl.value]);
+        visited = new Set([Number(startEl.value)]);
+        mstEdges = [];
+        consideredEdges = [];
+        selectedEdge = null;
+        lastAddedVertex = Number(startEl.value);
+        totalCost = 0;
+        finished = false;
+
+        logEl.innerHTML = '';
+        appendLog(`Стартуем из вершины ${startEl.value}.`);
+        setStatus('Готово к запуску. Нажмите «Запуск» или «Шаг вперёд».');
+
+        renderGraph();
+        updateStats();
+      }
+
+      function populateStartVertices() {
+        const current = startEl.value;
+        startEl.innerHTML = '';
+        for (const v of graphPresets[presetEl.value].vertices) {
+          const option = document.createElement('option');
+          option.value = String(v.id);
+          option.textContent = `Вершина ${v.id}`;
+          startEl.appendChild(option);
+        }
+        startEl.value = graphPresets[presetEl.value].vertices.some((v) => String(v.id) === current)
+          ? current
+          : String(graphPresets[presetEl.value].vertices[0].id);
+      }
+
+      function intervalFromSpeed() {
+        return 1700 - Number(speedEl.value) * 250;
+      }
+
+      function startAutoRun() {
+        if (running || finished) return;
+        running = true;
+        playPauseBtn.textContent = 'Пауза';
+        timer = setInterval(() => {
+          if (finished) {
+            stopAutoRun();
+            return;
+          }
+          stepPrim();
+        }, intervalFromSpeed());
+      }
+
+      playPauseBtn.addEventListener('click', () => {
+        if (running) {
+          stopAutoRun();
+        } else if (!finished) {
+          startAutoRun();
+        }
+      });
+
+      stepBtn.addEventListener('click', () => {
+        if (!running) stepPrim();
+      });
+
+      resetBtn.addEventListener('click', resetState);
+
+      speedEl.addEventListener('input', () => {
+        speedValue.textContent = `${(Number(speedEl.value) / 2 + 0.5).toFixed(1)}x`;
+        if (running) {
+          stopAutoRun();
+          startAutoRun();
+        }
+      });
+
+      presetEl.addEventListener('change', () => {
+        populateStartVertices();
+        resetState();
+      });
+
+      startEl.addEventListener('change', resetState);
+
+      populateStartVertices();
+      speedValue.textContent = `${(Number(speedEl.value) / 2 + 0.5).toFixed(1)}x`;
+      resetState();
+    })();
+  </script>
+</body>
+</html>
